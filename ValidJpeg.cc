@@ -38,7 +38,7 @@ int ValidJpeg::short_jpeg ()
 
 
   
-int ValidJpeg::valid_jpeg () 
+int ValidJpeg::valid_jpeg (const char * format) 
 {
   char in_entropy=0;
   char have_eoi = 0;
@@ -77,6 +77,13 @@ int ValidJpeg::valid_jpeg ()
 	}
       else 
 	{
+	  //getting 0s after EOI
+	  if (have_eoi)
+	    while (marker == 0)
+	      if ( fread(&marker, 1, 1, fh) < 1 )
+		return short_file;
+		
+
 	  if ( marker == 0 )
 	    return stray_0;
 	  if (marker != 0xff)
@@ -99,29 +106,15 @@ int ValidJpeg::valid_jpeg ()
       
       else if (marker == 0xd9) 
 	{
-	  #if 0
-	  unsigned char junk;
-	  fread(&junk, 1, 1, fh);
-	  if (feof(fh))
-	    return ok;
-	  else
-	    return trailing_junk;
-	  #else
 	  debug("got end (EOI)");
 	  have_eoi = 1;
-	  
-	  #endif
-	  
 	}
       
       else if ( (marker >= 0xd0) && (marker <= 0xd7) ) 
 	{
-	  /*
+	  //shouldn't see RST ouside of entropy
 	  if (valid_jpeg_debug)
 	    printf("got RST%d\n", marker-0xd0+1);
-	  */
-	  in_entropy = 1;
-	  
 	}
       
       else if ( marker == 0x01 )
@@ -142,7 +135,7 @@ int ValidJpeg::valid_jpeg ()
 
 	      fread(&length, 2, 1, fh);
 	      length = ntohs(length);
-
+	      //expect: len + CCCC\0 + payload => length > 7
 	      char buf[64];
 	      int buf_len = length-2;
 
@@ -179,17 +172,13 @@ int ValidJpeg::valid_jpeg ()
 	      
 	      
 	      if (valid_jpeg_debug) printf ("Length is %d\n", length);
-#if 1
-	      if (length > 512) 
-		fseek(fh,length-2,SEEK_CUR);
-	      else
-#endif
-		for (int j=2; j<length; ++j)
-		  {
-		    char junk;
-		    if ( fread(&junk, 1, 1, fh) < 1 )
-		      return short_file;
-		  }
+
+	      for (int j=2; j<length; ++j)
+		{
+		  char junk;
+		  if ( fread(&junk, 1, 1, fh) < 1 )
+		    return short_file;
+		}
 	    }
 	}
       

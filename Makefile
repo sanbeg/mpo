@@ -4,6 +4,7 @@ CXXFLAGS=-g
 #CXXFLAGS+=-fprofile-arcs -ftest-coverage
 fjc: FindJpeg.cc
 validate: ValidJpeg.cc
+split: ValidJpeg.cc
 
 find-bad:FindJpeg.cc ValidJpeg.cc
 
