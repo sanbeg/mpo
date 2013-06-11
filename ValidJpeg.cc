@@ -1,6 +1,7 @@
 #include "ValidJpeg.hh"
 #include <arpa/inet.h>
 #include <cstring>
+#include <cstdlib>
 
 bool valid_jpeg_debug = false;
 
@@ -42,6 +43,8 @@ int ValidJpeg::valid_jpeg (const char * format)
 {
   char in_entropy=0;
   char have_eoi = 0;
+  int image_cnt = 0;
+  FILE * image_fh = 0;
   
   while (! feof(fh))
     {
@@ -57,12 +60,25 @@ int ValidJpeg::valid_jpeg (const char * format)
 	    {
 	      if ( fread(&marker, 1, 1, fh) < 1 )
 		return short_file;
-	      if ( marker == 0 )
-		//escaped 0xff00
-		continue;
+	      if ( marker == 0 ) 
+		{
+		  //escaped 0xff00
+		  if (image_fh)
+		    fwrite("\xff\x00", 1, 2, image_fh);
+		  continue;
+		}
+	      
 	      else if ( (marker >= 0xd0) && (marker <= 0xd7) )
+		{
 		//RST
-		continue;
+		  if (image_fh) 
+		    {
+		      fwrite("\xff", 1, 1, image_fh);
+		      fwrite(&marker, 1, 1, image_fh);
+		    }
+		  continue;
+		}
+	      
 	      else 
 		{
 		  //marker after data may be padded
@@ -72,7 +88,15 @@ int ValidJpeg::valid_jpeg (const char * format)
 		  in_entropy = 0;
 		  
 		}
-	    } else continue;
+	    } 
+	  else 
+	    {
+	      if (image_fh)
+		fwrite(&marker, 1, 1, image_fh);
+	      
+	      continue;
+	    }
+	  
 	  
 	}
       else 
@@ -102,12 +126,29 @@ int ValidJpeg::valid_jpeg (const char * format)
 	{
 	  debug("got start (SOI)");
 	  have_eoi = 0;
+	  if (format) 
+	    {
+	      char * str;
+	      asprintf(&str, format, ++image_cnt);
+	      image_fh = fopen(str, "w");
+	      free(str);
+	      if (image_fh)
+		fwrite("\xff\xd8", 1, 2, image_fh);
+	      
+	    }
+	  
 	}
       
       else if (marker == 0xd9) 
 	{
 	  debug("got end (EOI)");
 	  have_eoi = 1;
+	  if (image_fh) 
+	    {
+	      fwrite("\xff\xd9", 1, 2, image_fh);
+	      fclose(image_fh);
+	      image_fh = 0;
+	    }
 	}
       
       else if ( (marker >= 0xd0) && (marker <= 0xd7) ) 
@@ -127,14 +168,28 @@ int ValidJpeg::valid_jpeg (const char * format)
 	  if (marker == 0xda /* SOS - start of scan */) {
 	    debug("got SOS");
 	    in_entropy = 1;
+	    if (image_fh) 
+	      fwrite("\xff\xda", 1, 2, image_fh);
 	  } 
 
 
 	  else if ((marker >= 0xe0) && (marker <= 0xffef)) 
 	    {
-
+	      // APPx
 	      fread(&length, 2, 1, fh);
+
+	      if (image_fh) 
+		{
+		  fwrite("\xff",  1, 1, image_fh);
+		  fwrite(&marker, 1, 1, image_fh);
+		  fwrite(&length, 2, 1, image_fh);
+		}
+	      
+			 
+
 	      length = ntohs(length);
+
+#if 0
 	      //expect: len + CCCC\0 + payload => length > 7
 	      char buf[64];
 	      int buf_len = length-2;
@@ -152,13 +207,16 @@ int ValidJpeg::valid_jpeg (const char * format)
 	      printf("  length is %d\n", length);
 	      
 	      length -= n_read;
-	      
-		for (int j=2; j<length; ++j)
-		  {
-		    char junk;
-		    if ( fread(&junk, 1, 1, fh) < 1 )
-		      return short_file;
-		  }
+#endif	      
+	      for (int j=2; j<length; ++j)
+		{
+		  char junk;
+		  if ( fread(&junk, 1, 1, fh) < 1 )
+		    return short_file;
+		  else if (image_fh)
+		    fwrite(&junk, 1, 1, image_fh);
+		  
+		}
 	      
 	    }
 	  else 
@@ -167,9 +225,13 @@ int ValidJpeg::valid_jpeg (const char * format)
 		printf ("got mark %x\n", marker);
 	      
 	      fread(&length, 2, 1, fh);
+	      if (image_fh)
+		{
+		  fwrite("\xff",  1, 1, image_fh);
+		  fwrite(&marker, 1, 1, image_fh);
+		  fwrite(&length, 2, 1, image_fh);
+		}
 	      length = ntohs(length);
-	      
-	      
 	      
 	      if (valid_jpeg_debug) printf ("Length is %d\n", length);
 
@@ -178,6 +240,8 @@ int ValidJpeg::valid_jpeg (const char * format)
 		  char junk;
 		  if ( fread(&junk, 1, 1, fh) < 1 )
 		    return short_file;
+		  else if (image_fh)
+		    fwrite(&junk, 1, 1, image_fh);
 		}
 	    }
 	}
