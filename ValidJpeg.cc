@@ -163,7 +163,8 @@ int ValidJpeg::valid_jpeg (const char * format)
       
       else
 	{
-	  unsigned short length;
+	  unsigned short length, net_length;
+	  bool skip_me = false;
 	  
 	  if (marker == 0xda /* SOS - start of scan */) {
 	    debug("got SOS");
@@ -176,45 +177,43 @@ int ValidJpeg::valid_jpeg (const char * format)
 	  else if ((marker >= 0xe0) && (marker <= 0xffef)) 
 	    {
 	      // APPx
-	      fread(&length, 2, 1, fh);
+	      char app[5]="";
+	      int nr;
+	      
+	      fread(&net_length, 2, 1, fh);
+	      length = ntohs(net_length);
 
-	      if (image_fh) 
+	      if (valid_jpeg_debug)
+		printf ("got APP%d length=%d\n", marker-0xe0, length);
+
+	      //trim some extraneous app2 blocks
+	      if ( (marker-0xe0 == 2) && (length >= 7) ) 
+		{
+		  nr=fread(app, 1, 5, fh);
+		  if (strncmp("MPF", app, 4) == 0) 
+		    {
+		      debug("got APP2/MPF");
+		      skip_me = true;
+		    } 
+		  length -= nr;
+		}
+	      // should also strip out MPF exif tags from app1
+
+	      if (image_fh && ! skip_me) 
 		{
 		  fwrite("\xff",  1, 1, image_fh);
 		  fwrite(&marker, 1, 1, image_fh);
-		  fwrite(&length, 2, 1, image_fh);
+		  fwrite(&net_length, 2, 1, image_fh);
+		  if (*app) fwrite(app, 1, nr, image_fh);
 		}
 	      
-			 
-
-	      length = ntohs(length);
-
-#if 0
-	      //expect: len + CCCC\0 + payload => length > 7
-	      char buf[64];
-	      int buf_len = length-2;
-
-	      if (buf_len > 64)
-		buf_len = 64;
-	      int n_read = fread(buf, 1, buf_len, fh);
-	      buf[buf_len-1]=0;
-	      
-	      if (strlen(buf) < 63)
-		printf("APP%d=%s\n", marker-0xe0, buf);
-	      else
-		printf ("got APP%d\n", marker-0xe0);
-	      
-	      printf("  length is %d\n", length);
-	      
-	      length -= n_read;
-#endif	      
 	      for (int j=2; j<length; ++j)
 		{
-		  char junk;
-		  if ( fread(&junk, 1, 1, fh) < 1 )
+		  char byte;
+		  if ( fread(&byte, 1, 1, fh) < 1 )
 		    return short_file;
-		  else if (image_fh)
-		    fwrite(&junk, 1, 1, image_fh);
+		  else if (image_fh && ! skip_me)
+		    fwrite(&byte, 1, 1, image_fh);
 		  
 		}
 	      
