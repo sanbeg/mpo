@@ -22,7 +22,7 @@ int main (int ac, const char ** argv)
 	  perror(fn);
 	  continue;
 	}
-      int rv = jpeg.valid_jpeg( false );
+      int rv = jpeg.valid_jpeg();
       printf("%s: %d\n", fn, rv);
     }
 }

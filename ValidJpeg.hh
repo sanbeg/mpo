@@ -28,6 +28,6 @@ enum valid_jpeg_status
 
   bool open(const char*);
   int short_jpeg();
-  int valid_jpeg(bool seek_over_entropy=true);
+  int valid_jpeg();
 };
 

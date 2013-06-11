@@ -38,16 +38,17 @@ int ValidJpeg::short_jpeg ()
 
 
   
-int ValidJpeg::valid_jpeg (bool seek_over_entropy) 
+int ValidJpeg::valid_jpeg () 
 {
   char in_entropy=0;
-
+  char have_eoi = 0;
+  
   while (! feof(fh))
     {
       unsigned char marker=0;
 
       if ( fread(&marker, 1, 1, fh) < 1 )
-	return short_file;
+	return have_eoi ? ok : short_file;
 
 
       if ( in_entropy ) 
@@ -76,20 +77,26 @@ int ValidJpeg::valid_jpeg (bool seek_over_entropy)
 	}
       else 
 	{
-	if (marker != 0xff)
-	  return missing_ff;
-	
-	
-	if ( fread(&marker, 1, 1, fh) < 1 )
-	  return short_file;
+	  if ( marker == 0 )
+	    return stray_0;
+	  if (marker != 0xff)
+	    return missing_ff;
+	  
+	  
+	  if ( fread(&marker, 1, 1, fh) < 1 )
+	    return short_file;
 	}
-      /*	
-      if ( marker == 0 )
-	return BAD_;
-      */
 
-      if (marker == 0xd8)
-	debug("got start (SOI)");
+      if ( marker == 0 )
+	return stray_0;
+
+
+      if (marker == 0xd8) 
+	{
+	  debug("got start (SOI)");
+	  have_eoi = 0;
+	}
+      
       else if (marker == 0xd9) 
 	{
 	  #if 0
@@ -100,7 +107,9 @@ int ValidJpeg::valid_jpeg (bool seek_over_entropy)
 	  else
 	    return trailing_junk;
 	  #else
-	  printf("got end (EOI)\n");
+	  debug("got end (EOI)");
+	  have_eoi = 1;
+	  
 	  #endif
 	  
 	}
@@ -124,20 +133,7 @@ int ValidJpeg::valid_jpeg (bool seek_over_entropy)
 	  
 	  if (marker == 0xda /* SOS - start of scan */) {
 	    debug("got SOS");
-	    
-	    if ( seek_over_entropy ) 
-	      {
-		if( fseek(fh,-2,SEEK_END) ) 
-		  return -1;
-		else
-		  continue;
-	      }
-	    else 
-	      {
-		debug("...entropy");
-		in_entropy = 1;
-		
-	      }
+	    in_entropy = 1;
 	  } 
 
 
@@ -174,8 +170,8 @@ int ValidJpeg::valid_jpeg (bool seek_over_entropy)
 	    }
 	  else 
 	    {
-	      
-	      printf ("got mark %x\n", marker);
+	      if (valid_jpeg_debug)
+		printf ("got mark %x\n", marker);
 	      
 	      fread(&length, 2, 1, fh);
 	      length = ntohs(length);
