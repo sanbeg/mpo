@@ -107,9 +107,6 @@ int ValidJpeg::valid_jpeg (const char * format)
 	      if ( fread(&marker, 1, 1, fh) < 1 )
 		return short_file;
 		
-
-	  if ( marker == 0 )
-	    return stray_0;
 	  if (marker != 0xff)
 	    return missing_ff;
 	  
@@ -155,11 +152,15 @@ int ValidJpeg::valid_jpeg (const char * format)
 	{
 	  //shouldn't see RST ouside of entropy
 	  if (valid_jpeg_debug)
-	    printf("got RST%d\n", marker-0xd0+1);
+	    printf("got bogus RST%d\n", marker-0xd0+1);
 	}
       
-      else if ( marker == 0x01 )
-	debug("got TEM");
+      else if ( marker == 0x01 ) 
+	{
+	  debug("got TEM");
+	  if (image_fh) 
+	      fwrite("\xff\x01", 1, 2, image_fh);
+	}
       
       else
 	{
