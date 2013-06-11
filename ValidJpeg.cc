@@ -48,30 +48,46 @@ int ValidJpeg::valid_jpeg (bool seek_over_entropy)
 
       if ( fread(&marker, 1, 1, fh) < 1 )
 	return short_file;
-      if (marker != 0xff)
-	{
-	  if (! in_entropy) 
-	    {
-	      printf("wanted 0xff, got %x\n", marker);
-	      //return missing_ff;
-	    }
-	  
-	  continue;
-	}
 
-      if ( fread(&marker, 1, 1, fh) < 1 )
-	return short_file;
-      
-      if (marker != 0)
+
+      if ( in_entropy ) 
 	{
-	  in_entropy = 0;
+	  if ( marker == 0xff ) 
+	    {
+	      if ( fread(&marker, 1, 1, fh) < 1 )
+		return short_file;
+	      if ( marker == 0 )
+		//escaped 0xff00
+		continue;
+	      else if ( (marker >= 0xd0) && (marker <= 0xd7) )
+		//RST
+		continue;
+	      else 
+		{
+		  //marker after data may be padded
+		  while ( marker == 0xff )
+		    if ( fread(&marker, 1, 1, fh) < 1 )
+		      return short_file;
+		  in_entropy = 0;
+		  
+		}
+	    } else continue;
+	  
 	}
-      else
+      else 
 	{
-	  if (! in_entropy)
-	    return stray_0;
-	  continue;
+	if (marker != 0xff)
+	  return missing_ff;
+	
+	
+	if ( fread(&marker, 1, 1, fh) < 1 )
+	  return short_file;
 	}
+      /*	
+      if ( marker == 0 )
+	return BAD_;
+      */
+
       if (marker == 0xd8)
 	debug("got start (SOI)");
       else if (marker == 0xd9) 
