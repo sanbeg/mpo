@@ -1,0 +1,17 @@
+Open source utils to work with .mpo files; currently tested with files from
+the Fujifilm FinePix 3DW3
+
+It seems there are very few open source tools to work with this format.
+
+Currently, this is a program to extract the individual images from this file.  
+
+There is already some quick & dirty code out there that guesses at
+boundaries by looking for a certain byte sequence, to produce something
+that's close enough to a valid jpeg that most image readers can handle it.
+This code follows the JPEG specification to extract the images and produce
+perfectly valid JPEG images.  This code also strips the MPF blocks, which
+aren't relevant in .jpg files, to produce output closer to what the camera
+produces; I may add functionality to strip the multi-picture Exif tags as
+well, which would allow producing .jpg files that are identical to what the
+camera produces.
+
