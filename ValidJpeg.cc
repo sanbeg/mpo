@@ -179,7 +179,7 @@ int ValidJpeg::valid_jpeg (const char * format)
 	    {
 	      // APPx
 	      char app[5]="";
-	      int nr;
+	      int nr=0;
 	      
 	      fread(&net_length, 2, 1, fh);
 	      length = ntohs(net_length);
@@ -198,14 +198,14 @@ int ValidJpeg::valid_jpeg (const char * format)
 		    } 
 		  length -= nr;
 		}
-	      // should also strip out MPF exif tags from app1
+	      // TODO - should also strip out MPF exif tags from app1
 
 	      if (image_fh && ! skip_me) 
 		{
 		  fwrite("\xff",  1, 1, image_fh);
 		  fwrite(&marker, 1, 1, image_fh);
 		  fwrite(&net_length, 2, 1, image_fh);
-		  if (*app) fwrite(app, 1, nr, image_fh);
+		  if (nr) fwrite(app, 1, nr, image_fh);
 		}
 	      
 	      for (int j=2; j<length; ++j)
@@ -237,11 +237,11 @@ int ValidJpeg::valid_jpeg (const char * format)
 
 	      for (int j=2; j<length; ++j)
 		{
-		  char junk;
-		  if ( fread(&junk, 1, 1, fh) < 1 )
+		  char byte;
+		  if ( fread(&byte, 1, 1, fh) < 1 )
 		    return short_file;
 		  else if (image_fh)
-		    fwrite(&junk, 1, 1, image_fh);
+		    fwrite(&byte, 1, 1, image_fh);
 		}
 	    }
 	}
